@@ -1,7 +1,7 @@
 ---
-title: "Managing Events in PunctuOwlity"
+title: "Managing Events in PunctuOwlity: Add, Edit, Delete"
 sidebarTitle: "Events"
-description: "Add, edit, delete, search, and filter events in PunctuOwlity. The events dashboard shows cards with day, date, title, time, and an optional reminder toggle."
+description: "Add, edit, delete, search, and filter events in PunctuOwlity. Event cards display day, date, title, time, and an optional per-event reminder toggle."
 ---
 
 The events dashboard is the core of PunctuOwlity. It displays every saved event as a card in a two-column grid and provides tools to add new events, edit or delete existing ones, search by title, and filter by category. On Android the dashboard is `MainActivity`; in the browser it is `events.html`, driven by `app.js`.
@@ -218,5 +218,5 @@ else if (!event.category && /(trip|travel|vacation)/.test(lowerTitle))
 | `day` | `string` | Three-letter uppercase day abbreviation, e.g. `"SAT"`. Derived from `fullDate`. |
 | `fullDate` | `string` | ISO 8601 date string (`YYYY-MM-DD`). Used for date comparisons and notification checks. |
 | `rawTime` | `string` | 24-hour time string as stored (`HH:MM`), or empty string for all-day events. |
-| `category` | `string` | One of `all`, `birthday`, `appointment`, `trip`, or `general`. Used by the filter tabs. |
+| `category` | `string` | One of `birthday`, `appointment`, `trip`, or `general` (default). The **All Events** tab shows every category; no event is stored with category `all`. |
 | `alert` | `boolean` | Whether a reminder notification is enabled for this event. |

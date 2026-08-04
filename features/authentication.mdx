@@ -1,5 +1,5 @@
 ---
-title: "Authentication in PunctuOwlity: Local Accounts"
+title: "PunctuOwlity Authentication: Local User Accounts Guide"
 sidebarTitle: "Authentication"
 description: "PunctuOwlity uses local user accounts — SQLite on Android, localStorage in the browser. No server, no cloud sync, and no external auth required."
 ---
@@ -76,6 +76,8 @@ PunctuOwlity authenticates users entirely on-device. There is no remote server a
                            email, phone, username, password: p };
       users.push(newAccount);
       if (!saveUsers(users)) { toast('Account creation failed!'); return; }
+      const saved = getUsers().some(user => String(user.id) === newAccount.id);
+      if (!saved) { toast('Account creation failed!'); return; }
       toast('Account Created Successfully');
       setTimeout(() => location.assign('index.html'), 900);
     });

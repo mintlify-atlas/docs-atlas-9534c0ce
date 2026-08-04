@@ -1,7 +1,7 @@
 ---
 title: "Building a Lightweight Event Tracker Without a Full Calendar"
 sidebarTitle: "Article"
-description: "Why PunctuOwlity was designed as a focused alternative to full calendar apps, and how the browser demo replicates a native mobile experience using localStorage."
+description: "How PunctuOwlity stays focused as a personal event tracker, and why the browser demo replicates the Android app using localStorage instead of SQLite."
 ---
 
 Calendar apps are useful, but they can be too heavy for simple reminders. Sometimes a user does not need shared calendars, meeting invites, workplace integrations, or a maze of settings. They just need to know what is coming up and have a quick way to add something new. That is the space PunctuOwlity was designed for — a small, focused event-tracking app with a clear mobile layout, simple event cards, and a friendly visual identity that gets out of the user's way.
@@ -10,7 +10,7 @@ Calendar apps are useful, but they can be too heavy for simple reminders. Someti
 
 The main dashboard is built around one thing: upcoming events. Each card in the grid shows exactly what the user needs at a glance — the **day of the week**, the **date number**, the **event title**, the **reminder status**, and the **scheduled time**. Nothing else competes for attention. That keeps the information readable even on a small phone screen.
 
-PunctuOwlity supports three event categories — **Birthdays**, **Appointments**, and **Trips** — but it does not bury the user in complex organisation tools. A simple tab row above the event grid gives enough filtering to find what is needed without turning the app into a planning cockpit. Switching tabs instantly narrows the cards in view; tapping **All** brings everything back. A live search bar handles the rest.
+PunctuOwlity supports three event categories — **Birthdays**, **Appointments**, and **Trips** — but it does not bury the user in complex organisation tools. A simple tab row above the event grid gives enough filtering to find what is needed without turning the app into a planning cockpit. Switching tabs instantly narrows the cards in view; tapping **All Events** brings everything back. A live search bar handles the rest.
 
 The deliberate decision to leave out recurring events, shared calendars, and time-zone management keeps every screen simple. Every user interaction has a clear outcome, and every screen has one obvious next step.
 
@@ -54,7 +54,7 @@ The browser version is not a rough approximation of the Android app — it is a 
 | Coral top app bar | `.topbar` with matching coral background |
 | Soft blue background | Body background colour carried through every screen |
 | Centred owl logo | `<img>` loaded into every `.logo` placeholder via `app.js` |
-| Teal month banner | Teal `.month-banner` panel on the events screen |
+| Teal month banner | Teal `.date-banner` panel on the events screen |
 | Dotted dividers | CSS dotted border rules between sections |
 | Two-column event cards | CSS grid in `#eventsGrid` |
 | Floating add button | `.fab` fixed-position button with the add-alarm icon |

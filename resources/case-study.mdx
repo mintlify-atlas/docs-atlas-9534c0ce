@@ -1,7 +1,7 @@
 ---
 title: "PunctuOwlity Case Study: Building a Focused Event Tracker"
 sidebarTitle: "Case Study"
-description: "How PunctuOwlity was designed and built as an Android app, then translated into a browser-based static demo — the problems solved and decisions made along the way."
+description: "How PunctuOwlity was designed as a native Android app, then translated into a browser demo — design choices, technical approach, and features delivered."
 ---
 
 PunctuOwlity is a mobile event-tracking app designed for people who want a quick way to manage simple reminders without opening a full calendar system. The app focuses on the essentials: logging in, creating an account, choosing SMS notification preferences, viewing upcoming events, adding events, editing events, deleting events, and searching through saved reminders. Rather than competing with feature-heavy calendar platforms, PunctuOwlity carves out a smaller, more readable space for everyday personal events.
@@ -24,10 +24,10 @@ Typography is drawn from a rich font library: the Android version ships with ove
 
 <Steps>
   <Step title="Login">
-    The app opens on a login screen where returning users enter their username (or email) and password to authenticate. Credentials are validated against locally stored accounts.
+    The app opens on a login screen where returning users enter their username and password to authenticate. In the browser demo, the login field also accepts an email address. Credentials are validated against locally stored accounts.
   </Step>
   <Step title="Sign Up">
-    New users tap through to the account creation screen and provide a first name, last name, email address, optional phone number, a chosen username, and a password. Duplicate usernames and emails are rejected before the account is saved.
+    New users tap through to the account creation screen and provide their credentials to create an account. In the browser demo the form collects first name, last name, email, optional phone, username, and password, with duplicate detection before saving. The Android version captures a username and password.
   </Step>
   <Step title="SMS Permission">
     After a successful login or sign-up, the app presents an SMS notification permission screen. The user can allow or deny SMS notifications — that choice is stored and respected going forward.
@@ -36,7 +36,7 @@ Typography is drawn from a rich font library: the Android version ships with ove
     With permissions resolved, the upcoming events dashboard loads. Events are displayed in a two-column card grid, each card showing the abbreviated day of the week, the date number, the event title, the scheduled time, and the current reminder status.
   </Step>
   <Step title="Search, Filter, Add, Edit, and Delete">
-    From the dashboard the user can type in the search bar to filter events by title, tap category tabs (All, Birthdays, Appointments, Trips) to narrow the list, press the floating add button to create a new event, tap the edit icon on any card to update it, or tap the delete icon to remove it immediately.
+    From the dashboard the user can type in the search bar to filter events by title, tap category tabs (All Events, Birthdays, Appointments, Trips) to narrow the list, press the floating add button to create a new event, tap the edit icon on any card to update it, or tap the delete icon to remove it immediately.
   </Step>
 </Steps>
 
@@ -87,7 +87,7 @@ Typography is drawn from a rich font library: the Android version ships with ove
 
 <CardGroup cols={2}>
   <Card title="Login and Account Creation" icon="user">
-    Users log in with a username or email and password. New accounts are created with first name, last name, email, optional phone, username, and password — with duplicate detection before saving.
+    Users log in with a username and password. In the browser demo, login also accepts an email address and the sign-up form collects first name, last name, email, optional phone, and username, with duplicate detection before saving.
   </Card>
   <Card title="SMS Notification Permission Flow" icon="comment-sms">
     A dedicated screen after sign-in captures the user's SMS notification preference. The choice is persisted locally so it is only asked once.
@@ -99,7 +99,7 @@ Typography is drawn from a rich font library: the Android version ships with ove
     A live search bar at the top of the dashboard filters the event cards in real time as the user types, matching against event titles.
   </Card>
   <Card title="Category Tabs" icon="filter">
-    A tab row lets users filter events by category — All, Birthdays, Appointments, and Trips — without any complex query UI.
+    A tab row lets users filter events by category — All Events, Birthdays, Appointments, and Trips — without any complex query UI.
   </Card>
   <Card title="Two-Column Event Cards" icon="id-card">
     Each event card shows the abbreviated weekday, the padded date number, the event title, the formatted time (or ALL DAY), and an alarm status icon in a compact, phone-friendly format.

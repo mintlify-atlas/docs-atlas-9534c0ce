@@ -168,7 +168,7 @@ const toast = message => {
   notice.setAttribute('role', 'status');
   notice.textContent = message;
   document.body.append(notice);
-  requestAnimationFrame(() => notice.classList.add('.show'));
+  requestAnimationFrame(() => notice.classList.add('show'));
   setTimeout(() => {
     notice.classList.remove('show');
     setTimeout(() => notice.remove(), 250);
