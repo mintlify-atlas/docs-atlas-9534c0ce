@@ -1,0 +1,152 @@
+---
+title: "Event Reminders and Notifications in PunctuOwlity"
+sidebarTitle: "Notifications"
+description: "PunctuOwlity supports per-event reminders. The Android app requests SEND_SMS permission; the browser demo uses the Web Notifications API."
+---
+
+PunctuOwlity lets you attach a reminder to any event. How that reminder is delivered depends on the platform — the Android app requests `SEND_SMS` permission to enable SMS-based alerts, while the browser version uses the Web Notifications API to fire desktop or mobile notifications. In both cases the user is asked for permission on first launch and can choose to allow or deny it.
+
+## Android SMS Permission
+
+The app declares the SMS permission and the optional telephony feature in `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.SEND_SMS" />
+<uses-feature android:name="android.hardware.telephony" android:required="false" />
+```
+
+Setting `android:required="false"` on the telephony feature means the app can still be installed on devices without a cellular radio (for example, Wi-Fi-only tablets).
+
+After a successful login, `MainActivity.onCreate` checks whether `SEND_SMS` has already been granted. If it has not, `SmsPermissionActivity` is launched:
+
+```java
+if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+        != PackageManager.PERMISSION_GRANTED) {
+    Intent smsIntent = new Intent(MainActivity.this, SmsPermissionActivity.class);
+    startActivity(smsIntent);
+}
+```
+
+Inside `SmsPermissionActivity`, the user is presented with two buttons — **Allow** and **Deny**. Tapping **Allow** triggers the system permission dialog via `ActivityCompat.requestPermissions`; tapping **Deny** skips the request entirely. Either way, the activity finishes and the user proceeds to `MainActivity`:
+
+```java
+buttonAllow.setOnClickListener(v -> {
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED) {
+        ActivityCompat.requestPermissions(
+            this, new String[]{Manifest.permission.SEND_SMS}, 1);
+    } else {
+        goToMainActivity();
+    }
+});
+
+buttonDeny.setOnClickListener(v -> goToMainActivity());
+
+@Override
+public void onRequestPermissionsResult(int requestCode,
+        String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (requestCode == 1) {
+        goToMainActivity();
+    }
+}
+```
+
+## Browser Notifications
+
+### First-Launch Permission Prompt
+
+When `events.html` loads, `app.js` checks for the `punctuowlity-sms` key in `localStorage`. If the key is `null` (i.e. the user has never been asked), they are redirected to `sms.html` before the dashboard is shown:
+
+```javascript
+if (sessionStorage.getItem('punctuowlity-authenticated') !== 'true') {
+  location.replace('index.html');
+} else if (localStorage.getItem('punctuowlity-sms') === null) {
+  location.replace('sms.html');
+}
+```
+
+On `sms.html`, the user can tap **Allow SMS Notifications** or **No, thanks**. Each button carries a `data-sms` attribute (`"allowed"` or `"denied"`) that is written directly to `localStorage['punctuowlity-sms']`, and the user is then sent to `events.html`:
+
+```javascript
+document.querySelectorAll('.sms-choice').forEach(b =>
+  b.addEventListener('click', () => {
+    localStorage.setItem('punctuowlity-sms', b.dataset.sms);
+    location.assign('events.html');
+  })
+);
+```
+
+### Requesting the Browser Notification Permission
+
+Back on the dashboard, if the user chose `'allowed'` and the browser permission is still `'default'` (neither granted nor denied), `Notification.requestPermission()` is called to trigger the browser's own permission dialog:
+
+```javascript
+if (localStorage.getItem('punctuowlity-sms') === 'allowed'
+    && 'Notification' in window
+    && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+```
+
+### Firing Today's Notifications
+
+On every dashboard load, `app.js` checks for events due today and fires a `Notification` for each one that has `alert: true`. A `sessionStorage` key keyed to the event's ID and today's date prevents the same notification from firing twice within a single browsing session:
+
+```javascript
+if ('Notification' in window && Notification.permission === 'granted') {
+  const today = new Date().toISOString().slice(0, 10);
+  getEvents()
+    .filter(event => event.alert && event.fullDate === today)
+    .forEach(event => {
+      const key = `punctuowlity-notified-${event.id}-${today}`;
+      if (!sessionStorage.getItem(key)) {
+        new Notification(event.title, { body: `Scheduled for ${event.time}` });
+        sessionStorage.setItem(key, 'true');
+      }
+    });
+}
+```
+
+The notification title is the event's title string and the body reads `Scheduled for <time>`, where `<time>` is the formatted display time (e.g. `"01:30PM"` or `"ALL DAY"`).
+
+## Toggling Reminders on Events
+
+**Browser:** Every event card on the dashboard displays an alarm icon that reflects the event's current `alert` value — a filled alarm icon when `alert` is `true`, a muted one when `false`. To change the reminder setting, click the edit button on the card to open `add-event.html`. The form includes a toggle switch:
+
+```html
+<label class="switch-row">
+  <span>Would you like to be reminded of this event?</span>
+  <input id="eventAlert" type="checkbox" role="switch">
+</label>
+```
+
+When the form loads for an existing event, `#eventAlert` is pre-checked according to the stored `alert` value:
+
+```javascript
+if (existing) {
+  document.querySelector('#eventTitle').value       = existing.title;
+  document.querySelector('#eventAlert').checked     = existing.alert;
+  document.querySelector('#eventDate').value        = existing.fullDate || '';
+  document.querySelector('#eventTime').value        = existing.rawTime  || '';
+}
+```
+
+When the form is saved, the checkbox state is read and stored with the event:
+
+```javascript
+const item = {
+  // ...other fields
+  alert: document.querySelector('#eventAlert').checked
+};
+```
+
+**Android:** The `Event` model stores `id`, `title`, `date`, and `time` — the four columns defined in `DatabaseHelper`. Reminder delivery on Android is gated on the `SEND_SMS` permission granted (or denied) through `SmsPermissionActivity`.
+
+<Note>
+  The browser notification check runs once each time the dashboard page loads. If you add a new event with `alert: true` for today's date, navigate away, and then return to `events.html`, the notification will fire on that return visit — unless the `punctuowlity-notified-<id>-<date>` key is already present in `sessionStorage` from an earlier load in the same tab session.
+</Note>
+
+<Tip>
+  Browser notifications only fire when `Notification.permission === 'granted'`. If you previously dismissed or denied the browser's own permission prompt, the in-app **Allow** choice in `sms.html` has no further effect until you re-enable notifications for the site. To do this, open your browser's site settings for the PunctuOwlity page and set Notifications to **Allow**.
+</Tip>

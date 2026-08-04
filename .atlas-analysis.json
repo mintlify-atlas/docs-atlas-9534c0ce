@@ -1,0 +1,72 @@
+{
+  "projectType": "saas",
+  "projectName": "PunctuOwlity",
+  "projectDescription": "A mobile-style event tracker app for quickly adding, viewing, and managing important dates — available as a native Android app and a browser-based demo.",
+  "theme": "almond",
+  "primaryColor": "#E8614A",
+  "lightColor": "#4DC9C4",
+  "darkColor": "#1A2B4A",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Using PunctuOwlity",
+        "pages": [
+          "features/authentication",
+          "features/events",
+          "features/notifications"
+        ]
+      },
+      {
+        "group": "Technical Reference",
+        "pages": [
+          "reference/data-model",
+          "reference/android-source",
+          "reference/browser-demo"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "resources/case-study",
+          "resources/article"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "User account creation and login (local SQLite on Android, localStorage in browser)",
+    "Upcoming events dashboard with two-column card layout",
+    "Add, edit, and delete events with title, date, and time fields",
+    "Category filtering (All, Birthday, Appointment, Trip)",
+    "Search events by title",
+    "Reminder/alert toggle per event with browser Notification API support",
+    "SMS permission flow on Android",
+    "Coral app bar and teal accent visual identity with playful owl branding",
+    "Browser-based demo runnable from GitHub Pages (no server required)"
+  ],
+  "publicApiSurface": [
+    "LoginActivity — username/password login against local SQLite users table",
+    "SignupActivity — create account with username and password",
+    "MainActivity — grid of event cards, FAB to add, edit/delete per card",
+    "AddEventActivity — form to insert or update an event (title, date MM/dd/yyyy, time)",
+    "SmsPermissionActivity — grant or deny SEND_SMS permission",
+    "DatabaseHelper.insertEvent(title, date, time)",
+    "DatabaseHelper.updateEvent(id, title, date, time)",
+    "DatabaseHelper.deleteEvent(id)",
+    "DatabaseHelper.getAllEvents()",
+    "DatabaseHelper.getEventById(id)",
+    "DatabaseHelper.insertUser(username, password)",
+    "DatabaseHelper.checkUser(username, password)",
+    "Event model: id, title, date (MM/dd/yyyy), time, getDayOfWeek(), getDateDay()",
+    "Browser app.js: getEvents(), saveEvents(events), normalizeEvent(event)",
+    "Browser app.js: getUsers(), saveUsers(users)",
+    "Browser app.js: toast(message)"
+  ]
+}

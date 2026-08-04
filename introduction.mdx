@@ -1,0 +1,75 @@
+---
+title: "PunctuOwlity: Simple Event Tracking for Important Dates"
+sidebarTitle: "Introduction"
+description: "PunctuOwlity is a mobile-style event tracker for birthdays, appointments, and trips — available as a native Android app and a static browser demo."
+---
+
+PunctuOwlity is a focused event-tracking app designed for people who want a quick way to manage simple reminders without the overhead of a full calendar system. Full calendar apps bring shared calendars, meeting invites, workplace integrations, and a maze of settings — far more than someone needs when they just want to remember a handful of upcoming dates. PunctuOwlity keeps things readable and practical: log in, add your events, and see what is coming up at a glance. It ships in two forms — a native Android app and a static browser demo — so you can run it anywhere from Android Studio to GitHub Pages.
+
+## The Two Versions
+
+<Tabs>
+  <Tab title="Android App">
+    The original version of PunctuOwlity is a native Android application built with Java and XML layouts. It stores all event and account data in a local SQLite database and requests the `SEND_SMS` permission so the app can offer SMS-based reminders.
+
+    | Detail | Value |
+    |---|---|
+    | Language | Java |
+    | Storage | SQLite |
+    | Permission | `android.permission.SEND_SMS` |
+    | `compileSdk` | 35 |
+    | `minSdk` | 21 (Android 5.0 Lollipop) |
+    | `targetSdk` | 35 |
+
+    The app launches into a `LoginActivity`, routes through `SignupActivity` and `SmsPermissionActivity`, and then lands on the main events dashboard in `MainActivity`.
+  </Tab>
+  <Tab title="Browser Demo">
+    The browser demo rebuilds the full Android experience in plain HTML, CSS, and vanilla JavaScript. There is no build step, no framework, and no server required — open `index.html` and it runs.
+
+    | Detail | Value |
+    |---|---|
+    | Stack | HTML / CSS / JavaScript |
+    | Storage | Browser `localStorage` |
+    | Notifications | Web Notifications API |
+    | Server required | No |
+    | Hosting | Works locally or on GitHub Pages |
+
+    The demo preserves the original app's visual structure — the coral top bar, soft blue background, teal month banner, two-column event cards, and floating add button — while replacing SQLite with `localStorage` so the project stays fully front-end.
+  </Tab>
+</Tabs>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Two-Column Event Dashboard" icon="table-columns" href="/introduction">
+    The main screen lays events out in a two-column card grid so dates and titles are easy to scan on a phone-sized screen. Each card shows the day of the week, date number, event title, time, and reminder status.
+  </Card>
+  <Card title="Add, Edit, and Delete Events" icon="calendar-plus" href="/introduction">
+    A floating action button opens the Add Event form. Tap the edit icon on any card to update its title, date, time, or reminder toggle. Tap the delete icon to remove it immediately.
+  </Card>
+  <Card title="Category Filtering" icon="filter" href="/introduction">
+    A tab row at the top of the dashboard lets you filter events by category: **All**, **Birthday**, **Appointment**, or **Trip**. Switch tabs to narrow the view without losing any data.
+  </Card>
+  <Card title="Search by Title" icon="magnifying-glass" href="/introduction">
+    A search input at the top of the dashboard filters the event list in real time as you type. Results update instantly, matching against event titles across all categories.
+  </Card>
+  <Card title="Per-Event Reminder Toggle" icon="bell" href="/introduction">
+    Each event has a reminder/alert toggle. When enabled, the Android app can send an SMS reminder and the browser demo fires a Web Notification on the event's date (if permission has been granted).
+  </Card>
+  <Card title="Local Data Persistence" icon="hard-drive" href="/introduction">
+    All data is stored on-device. The Android app uses SQLite; the browser demo uses browser `localStorage`. No account data, no event data, and no preferences ever leave the device.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+PunctuOwlity follows a straightforward four-step user flow:
+
+1. **Login** — The app opens on the Login screen. Enter your username (or email) and password to continue.
+2. **SMS / Notification permission** — New users pass through a permission screen. On Android, the app requests `SEND_SMS` access. In the browser demo, this screen lets you allow or deny the Web Notifications API before the dashboard loads.
+3. **Events dashboard** — After permission is handled, the main dashboard opens with your upcoming events in a two-column card layout. A search bar and category tabs sit at the top for quick filtering.
+4. **Add, edit, or delete** — Tap the floating action button (FAB) to open the Add Event form. Tap the edit or delete icon on any existing card to modify or remove it.
+
+<Note>
+  PunctuOwlity stores all data locally — there is no backend server or cloud sync. The Android app persists accounts and events in a local SQLite database. The browser demo stores the same data in browser `localStorage`. Clearing site data in your browser, or uninstalling the Android app, will remove all saved events and accounts.
+</Note>

@@ -1,0 +1,93 @@
+---
+title: "Building a Lightweight Event Tracker Without a Full Calendar"
+sidebarTitle: "Article"
+description: "Why PunctuOwlity was designed as a focused alternative to full calendar apps, and how the browser demo replicates a native mobile experience using localStorage."
+---
+
+Calendar apps are useful, but they can be too heavy for simple reminders. Sometimes a user does not need shared calendars, meeting invites, workplace integrations, or a maze of settings. They just need to know what is coming up and have a quick way to add something new. That is the space PunctuOwlity was designed for — a small, focused event-tracking app with a clear mobile layout, simple event cards, and a friendly visual identity that gets out of the user's way.
+
+## Keeping the Interface Focused
+
+The main dashboard is built around one thing: upcoming events. Each card in the grid shows exactly what the user needs at a glance — the **day of the week**, the **date number**, the **event title**, the **reminder status**, and the **scheduled time**. Nothing else competes for attention. That keeps the information readable even on a small phone screen.
+
+PunctuOwlity supports three event categories — **Birthdays**, **Appointments**, and **Trips** — but it does not bury the user in complex organisation tools. A simple tab row above the event grid gives enough filtering to find what is needed without turning the app into a planning cockpit. Switching tabs instantly narrows the cards in view; tapping **All** brings everything back. A live search bar handles the rest.
+
+The deliberate decision to leave out recurring events, shared calendars, and time-zone management keeps every screen simple. Every user interaction has a clear outcome, and every screen has one obvious next step.
+
+## Why the Browser Demo Uses localStorage
+
+The original Android app used **SQLite** via a `DatabaseHelper` class that managed two tables — `users` and `events` — and exposed straightforward insert, update, delete, and query methods. That is the right choice for a native mobile project: SQLite is fast, reliable, and ships with Android.
+
+The browser demo takes a different path by using **`localStorage`** instead, for three reasons:
+
+1. **No backend required.** `localStorage` is a native browser API. There is no server to provision, no database to configure, and no environment variables to manage. The demo is a set of static files.
+2. **Easy to host on GitHub Pages.** A static project with no server-side dependencies can be deployed to GitHub Pages with a single push. Anyone can open the live URL immediately.
+3. **The core idea is preserved.** `localStorage` still represents saved local data that persists across sessions — the same conceptual model as SQLite, just in a browser context. Users create accounts, log in, and see their events on every visit.
+
+The `app.js` file manages all reads and writes to `localStorage` through two helper functions, `getEvents` and `saveEvents`, and ships with seed events so the demo is populated from the very first load.
+
+```js
+// Reads from localStorage, falls back to seed data on first load
+const getEvents = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('punctuowlity-events'));
+    return (Array.isArray(saved) ? saved : seedEvents).map(normalizeEvent);
+  } catch {
+    return seedEvents.map(normalizeEvent);
+  }
+};
+
+// Persists the current event array back to localStorage
+const saveEvents = e =>
+  localStorage.setItem('punctuowlity-events', JSON.stringify(e));
+```
+
+User accounts follow the same pattern, stored under `punctuowlity-users` and managed through an `accountStorage` helper that tries both `localStorage` and `sessionStorage` to maximise compatibility.
+
+## Matching the Original App Experience
+
+The browser version is not a rough approximation of the Android app — it is a deliberate recreation. Every visual element from the native design has a counterpart in the browser build:
+
+| Android element | Browser equivalent |
+|---|---|
+| Status bar | Android-inspired status bar strip |
+| Coral top app bar | `.topbar` with matching coral background |
+| Soft blue background | Body background colour carried through every screen |
+| Centred owl logo | `<img>` loaded into every `.logo` placeholder via `app.js` |
+| Teal month banner | Teal `.month-banner` panel on the events screen |
+| Dotted dividers | CSS dotted border rules between sections |
+| Two-column event cards | CSS grid in `#eventsGrid` |
+| Floating add button | `.fab` fixed-position button with the add-alarm icon |
+
+The result feels like the original mobile design while being easy to open in any browser, share as a link, or embed in a portfolio.
+
+<Note>
+  The browser version targets the same visual identity as the Android app, so screenshots and demos look consistent across both platforms. Reviewers seeing the browser demo for the first time immediately recognise it as the same product as the Android screenshots.
+</Note>
+
+## What This Project Demonstrates
+
+<CardGroup cols={2}>
+  <Card title="Interface Recreation from Native to Browser" icon="mobile-screen">
+    Every screen from the Android app — login, sign-up, SMS permission, events dashboard, and add/edit form — is faithfully reproduced in HTML and CSS, preserving the original layout and colour palette.
+  </Card>
+  <Card title="Local State Management with localStorage" icon="hard-drive">
+    Event data and user accounts are stored in `localStorage`, giving the demo persistent state across sessions without a database or server. A `normalizeEvent` helper keeps every record in a consistent shape.
+  </Card>
+  <Card title="Form Validation" icon="circle-check">
+    Both the sign-up form and the add/edit event form validate all required fields before saving. Duplicate username and email detection prevents conflicting accounts from being created.
+  </Card>
+  <Card title="Event Filtering and Search" icon="filter">
+    Category tabs and a live search input work together to let users narrow down their event list instantly. Filtering is handled entirely in JavaScript with no page reloads.
+  </Card>
+  <Card title="App-Style Interaction in Plain HTML/JS" icon="code">
+    Toast notifications, back-button navigation, password visibility toggles, reminder alerts via the Notifications API, and a floating action button all contribute to a native-feeling interaction model using zero frameworks.
+  </Card>
+  <Card title="Static Hosting on GitHub Pages" icon="globe">
+    Because the project has no server-side dependencies, the entire app deploys to GitHub Pages as-is. No build pipeline, no environment configuration — just a static file host and a modern browser.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Ready to try PunctuOwlity yourself? Head over to the [Quickstart guide](/quickstart) to get the browser demo running in minutes.
+</Tip>

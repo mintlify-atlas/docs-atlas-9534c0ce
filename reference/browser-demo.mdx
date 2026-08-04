@@ -1,0 +1,282 @@
+---
+title: "PunctuOwlity Browser Demo: Static Frontend Architecture"
+sidebarTitle: "Browser Demo"
+description: "How the PunctuOwlity browser demo works: HTML pages, vanilla JavaScript in app.js, localStorage persistence, and the Web Notifications API."
+---
+
+The browser demo is a static project — no build tool, no framework, no server. It replicates the Android app's full flow using plain HTML, CSS, and vanilla JavaScript, with `localStorage` in place of SQLite. Open any HTML file directly in a browser and it works without an HTTP server, though some features (Web Notifications) require a secure context or `localhost`.
+
+---
+
+## File Structure
+
+```
+punctuowlity/
+├── index.html          ← Login screen
+├── signup.html         ← Account creation
+├── sms.html            ← SMS / notification permission choice
+├── events.html         ← Main events dashboard
+├── add-event.html      ← Add or edit event form
+├── app.js              ← All shared JavaScript
+├── styles.css          ← All styling
+└── assets/
+    ├── punctuowlity-logo.png   ← App logo
+    └── icons.svg               ← SVG sprite (back, search, add-alarm,
+                                    alarm-on, alarm-off, edit, delete)
+```
+
+| File | `data-page` | Purpose |
+|---|---|---|
+| `index.html` | `"login"` | Username / email + password form. Submits to the `#loginForm` handler in `app.js`. |
+| `signup.html` | `"signup"` | Full registration form: first name, last name, email, phone, username, password, confirm password. Submits to the `#signupForm` handler. |
+| `sms.html` | `"sms"` | Two-button choice screen. Saves `"allowed"` or `"denied"` to `localStorage['punctuowlity-sms']` and navigates to `events.html`. |
+| `events.html` | `"main"` | Protected dashboard — redirects to `index.html` if not authenticated, or to `sms.html` if the SMS preference has not been set. Renders the event grid, category tabs, and search field. |
+| `add-event.html` | `"add"` | Add-or-edit form (title, date, time, alert toggle). Reads an `?id=` query parameter to load an existing event for editing. |
+
+---
+
+## app.js Architecture
+
+`app.js` is a single, side-effect-driven script. It runs on every page load, inspects `document.body.dataset.page`, and activates only the logic relevant to the current page. Shared utilities are always initialised.
+
+### `getEvents()`
+
+```javascript
+const getEvents = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('punctuowlity-events'));
+    return (Array.isArray(saved) ? saved : seedEvents).map(normalizeEvent);
+  } catch {
+    return seedEvents.map(normalizeEvent);
+  }
+};
+```
+
+Reads the `punctuowlity-events` key from `localStorage`. If the key is absent, `null`, or not a valid JSON array, it falls back to the built-in `seedEvents` array. Every event — whether from storage or the seed — is passed through `normalizeEvent` before being returned, so callers always receive a fully-formed event object.
+
+---
+
+### `saveEvents(events)`
+
+```javascript
+const saveEvents = e => localStorage.setItem('punctuowlity-events', JSON.stringify(e));
+```
+
+Serialises the given array to JSON and writes it to `localStorage` under `punctuowlity-events`, replacing whatever was there before. Always pass the full array, not a delta.
+
+---
+
+### `normalizeEvent(event)`
+
+The central transformation function. Accepts a raw event object from any source and returns a fully-normalised object guaranteed to have every field the UI depends on.
+
+```javascript
+const normalizeEvent = event => {
+  const rawDate = String(event.fullDate || event.date || '').trim();
+  let parsed = null, fullDate = event.fullDate || '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+    fullDate = rawDate;
+    parsed = new Date(`${rawDate}T00:00:00`);
+  } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)) {
+    const [month, day, year] = rawDate.split('/');
+    fullDate = `${year}-${month}-${day}`;
+    parsed = new Date(`${fullDate}T00:00:00`);
+  } else if (event.fullDate) {
+    parsed = new Date(`${event.fullDate}T00:00:00`);
+  }
+
+  const valid = parsed && !Number.isNaN(parsed.getTime());
+  const rawTime = String(event.rawTime || event.time || '').trim();
+  let displayTime = rawTime || 'ALL DAY';
+
+  if (/^\d{1,2}:\d{2}$/.test(rawTime)) {
+    const [hours, minutes] = rawTime.split(':').map(Number);
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const hour = hours % 12 || 12;
+    displayTime = `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${suffix}`;
+  }
+
+  const title = String(event.title || ''), lowerTitle = title.toLowerCase();
+  let category = event.category || 'general';
+  if (!event.category && lowerTitle.includes('birthday')) category = 'birthday';
+  else if (!event.category && /(appointment|dentist|dental|doctor)/.test(lowerTitle)) category = 'appointment';
+  else if (!event.category && /(trip|travel|vacation)/.test(lowerTitle)) category = 'trip';
+
+  return {
+    ...event,
+    id:       String(event.id || Date.now()),
+    day:      valid ? parsed.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : (event.day || '---'),
+    date:     valid ? String(parsed.getDate()).padStart(2, '0') : (/^\d{1,2}$/.test(String(event.date || '')) ? String(event.date).padStart(2, '0') : '00'),
+    fullDate,
+    rawTime,
+    time:     displayTime,
+    title,
+    category,
+    alert:    Boolean(event.alert)
+  };
+};
+```
+
+**Date handling:** Accepts `YYYY-MM-DD` (ISO) or `MM/dd/yyyy` (Android legacy) in either `fullDate` or `date`. Both are normalised to `YYYY-MM-DD` in the returned object.
+
+**Time handling:** A non-empty `rawTime` matching `HH:MM` is converted to 12-hour display format with a two-digit hour and `AM`/`PM` suffix (e.g. `"13:30"` → `"01:30PM"`). An empty or absent `rawTime` produces `"ALL DAY"`.
+
+**Category auto-detection:** Only fires when the incoming event has no `category` field. If a category was explicitly saved, it is preserved as-is.
+
+---
+
+### `getUsers()` / `saveUsers(users)`
+
+```javascript
+const accountStorage = {
+  get() {
+    for (const storage of availableAccountStorage()) {
+      try {
+        const users = JSON.parse(storage.getItem('punctuowlity-users'));
+        if (Array.isArray(users)) return users;
+      } catch {}
+    }
+    return [];
+  },
+  set(users) {
+    const value = JSON.stringify(users);
+    let saved = false;
+    for (const storage of availableAccountStorage()) {
+      try { storage.setItem('punctuowlity-users', value); saved = true; } catch {}
+    }
+    return saved;
+  }
+};
+
+const getUsers  = () => accountStorage.get();
+const saveUsers = users => accountStorage.set(users);
+```
+
+User data is written to **both** `localStorage` and `sessionStorage` (whichever are available). On read, the first storage that contains a valid array wins. This dual-write strategy makes accounts survive a page refresh (`localStorage`) while also being accessible to short-lived session checks (`sessionStorage`).
+
+---
+
+### `toast(message)`
+
+```javascript
+const toast = message => {
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const notice = document.createElement('div');
+  notice.className = 'toast';
+  notice.setAttribute('role', 'status');
+  notice.textContent = message;
+  document.body.append(notice);
+  requestAnimationFrame(() => notice.classList.add('.show'));
+  setTimeout(() => {
+    notice.classList.remove('show');
+    setTimeout(() => notice.remove(), 250);
+  }, 2400);
+};
+```
+
+Creates a `.toast` `<div>` at the bottom of `<body>`. The `.show` class is added on the next animation frame to trigger a CSS transition in. After 2400 ms the `.show` class is removed (triggering a fade-out transition), then the element is removed from the DOM after a further 250 ms. Any existing toast is removed immediately before a new one is created, preventing stacking.
+
+---
+
+## Page Routing Logic
+
+Every HTML page sets `document.body.dataset.page` to a string identifier. `app.js` branches on this value using `if (document.body.dataset.page === '...')` blocks.
+
+**Protected route (`events.html` / `data-page="main"`):**
+
+```javascript
+if (sessionStorage.getItem('punctuowlity-authenticated') !== 'true') {
+  location.replace('index.html');
+} else if (localStorage.getItem('punctuowlity-sms') === null) {
+  location.replace('sms.html');
+}
+```
+
+Two guards are enforced in sequence:
+1. `sessionStorage['punctuowlity-authenticated']` must equal `'true'`. This value is set by the login form handler on a successful credential match and is cleared automatically when the browser session ends.
+2. `localStorage['punctuowlity-sms']` must not be `null`. A `null` value means the user has never passed through `sms.html`, so they are redirected there before reaching the event list.
+
+**Login success navigation:**
+
+```javascript
+sessionStorage.setItem('punctuowlity-authenticated', 'true');
+location.assign('events.html');
+```
+
+**Signup success navigation:**
+
+```javascript
+toast('Account Created Successfully');
+setTimeout(() => location.assign('index.html'), 900);
+```
+
+**General back button:** Each page has a `.back` button wired to `history.back()`, falling back to `location.assign('index.html')` if there is no history entry.
+
+All navigations between pages use `location.assign()` (pushes a history entry) or `location.replace()` (no history entry, used for auth redirects).
+
+---
+
+## Seed Events
+
+When no `punctuowlity-events` key exists in `localStorage`, `getEvents()` falls back to the following built-in array:
+
+```javascript
+const seedEvents = [
+  {
+    id: 'project',
+    day: 'SAT',
+    date: '05',
+    fullDate: '2025-04-05',
+    rawTime: '',
+    title: 'Project Two Due',
+    time: 'ALL DAY',
+    category: 'all',
+    alert: false
+  },
+  {
+    id: 'birthday',
+    day: 'SAT',
+    date: '12',
+    fullDate: '2025-04-12',
+    rawTime: '18:30',
+    title: "Nich's Birthday",
+    time: '06:30PM',
+    category: 'birthday',
+    alert: true
+  },
+  {
+    id: 'dentist',
+    day: 'MON',
+    date: '14',
+    fullDate: '2025-04-14',
+    rawTime: '13:30',
+    title: 'Dentist',
+    time: '01:30PM',
+    category: 'appointment',
+    alert: false
+  },
+  {
+    id: 'wedding',
+    day: 'SUN',
+    date: '20',
+    fullDate: '2025-04-20',
+    rawTime: '15:00',
+    title: "Jessica's Wedding",
+    time: '03:00PM',
+    category: 'trip',
+    alert: false
+  }
+];
+```
+
+The seed covers all four event categories (`all`, `birthday`, `appointment`, `trip`) and includes one all-day event (`Project Two Due`) alongside three timed events. One seed event (`Nich's Birthday`) has `alert: true` to demonstrate the notification logic.
+
+<Tip>
+  To reset the browser demo back to seed data, open the browser console and run:
+  ```javascript
+  localStorage.removeItem('punctuowlity-events');
+  ```
+  Then refresh the page. `getEvents()` will find no saved data and fall back to `seedEvents`.
+</Tip>

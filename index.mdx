@@ -1,20 +1,58 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "PunctuOwlity: Simple Event Tracking for Important Dates"
+sidebarTitle: "Home"
+description: "PunctuOwlity is a mobile-style event tracker for birthdays, appointments, and trips. Add, search, and manage dates without the overhead of a full calendar."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+PunctuOwlity is a focused event-tracking app that keeps important dates front and center. Whether you're running the native Android app or the browser-based demo, you get the same clean two-column card layout, quick add/edit/delete actions, category filtering, and optional reminders — no bloated calendar system required.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="circle-info" href="/introduction">
+    Learn what PunctuOwlity is, how it works, and what the two versions (Android and browser demo) each offer.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Run the browser demo locally or build and install the Android app in under five minutes.
+  </Card>
+  <Card title="Managing Events" icon="calendar-days" href="/features/events">
+    Add, edit, delete, search, and filter events by category from the events dashboard.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Create an account and log in — stored locally in SQLite (Android) or localStorage (browser).
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What PunctuOwlity Does
+
+PunctuOwlity solves a narrow problem well: you need to remember a handful of upcoming dates — a birthday, a dentist appointment, a trip — and you want them instantly visible without navigating a full calendar.
+
+<CardGroup cols={2}>
+  <Card title="Notifications" icon="bell" href="/features/notifications">
+    Set per-event reminders. The Android app uses SMS; the browser demo uses the Web Notifications API.
+  </Card>
+  <Card title="Data Model" icon="database" href="/reference/data-model">
+    Understand the Event and User schemas that power both the Android SQLite database and the browser localStorage.
+  </Card>
+  <Card title="Android Source" icon="mobile" href="/reference/android-source">
+    Explore the Java Activity classes, DatabaseHelper, and AndroidManifest that make up the native app.
+  </Card>
+  <Card title="Browser Demo" icon="globe" href="/reference/browser-demo">
+    See how the static HTML/CSS/JS demo replicates the native app experience using localStorage and the Web Notifications API.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<Steps>
+  <Step title="Create an account and log in">
+    Sign up with a username and password. Credentials are stored locally — no server or internet connection required.
+  </Step>
+  <Step title="Choose your notification preference">
+    On Android, grant or deny SMS permission. In the browser, allow or block the Web Notifications API.
+  </Step>
+  <Step title="Add events to your dashboard">
+    Tap the floating add button, fill in a title, date, and time, then save. The card appears immediately in the two-column grid.
+  </Step>
+  <Step title="Search and filter anytime">
+    Use the search bar to find events by title, or switch between All, Birthday, Appointment, and Trip tabs to narrow the view.
+  </Step>
+</Steps>

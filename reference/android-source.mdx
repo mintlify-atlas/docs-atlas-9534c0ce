@@ -1,0 +1,312 @@
+---
+title: "PunctuOwlity Android Source: Activities and Architecture"
+sidebarTitle: "Android Source"
+description: "Overview of the PunctuOwlity Android app's Java Activities, Gradle configuration, permissions, and SQLite database integration."
+---
+
+The Android version of PunctuOwlity is a Java app built with Android Studio, targeting API 35 with a minimum of API 21, using SQLite for local storage via a custom `DatabaseHelper` class and Material3 for theming. All business logic, navigation, and data persistence are handled inside the Activity layer — there are no Fragments, ViewModels, or repositories.
+
+---
+
+## Project Structure
+
+All source files live under the package `com.example.punctuowlityeventtracker`. The package contains seven classes in total:
+
+| Class | Role |
+|---|---|
+| `LoginActivity` | Launcher activity — username/password sign-in |
+| `SignupActivity` | New-account registration |
+| `SmsPermissionActivity` | Runtime `SEND_SMS` permission request |
+| `MainActivity` | Main event list dashboard |
+| `AddEventActivity` | Create or edit a single event |
+| `DatabaseHelper` | SQLite `SQLiteOpenHelper` wrapper |
+| `Event` | Plain data model for a single event row |
+
+### Gradle highlights
+
+```groovy
+android {
+    namespace 'com.example.punctuowlityeventtracker'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.example.punctuowlityeventtracker"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+}
+```
+
+The project uses the [Version Catalog](https://docs.gradle.org/current/userguide/platforms.html) (`gradle/libs.versions.toml`) to pin dependency versions. Java source and target compatibility are set to `JavaVersion.VERSION_11`.
+
+---
+
+## Activity Reference
+
+### LoginActivity
+
+**Purpose:** Entry point of the application. Accepts a username and password, validates them against the SQLite `users` table, and navigates to `MainActivity` on success.
+
+**Layout:** `activity_login.xml`
+
+**Key UI elements:**
+- `editUsername` (`EditText`) — username input
+- `editPassword` (`EditText`) — password input
+- `buttonLogin` (`Button`) — submits credentials
+- `buttonSignUp` (`Button`) — navigates to `SignupActivity`
+
+**Navigation:**
+- Login button → calls `DatabaseHelper.checkUser(username, password)`. On `true`, starts `MainActivity` and calls `finish()`.
+- Sign Up button → starts `SignupActivity`.
+- A failed login shows a short `Toast`: `"Invalid Username or Password"`.
+
+```java
+buttonLogin.setOnClickListener(v -> {
+    String username = editUsername.getText().toString().trim();
+    String password = editPassword.getText().toString().trim();
+    if (databaseHelper.checkUser(username, password)) {
+        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+        startActivity(intent);
+        finish();
+    } else {
+        Toast.makeText(LoginActivity.this, "Invalid Username or Password",
+                Toast.LENGTH_SHORT).show();
+    }
+});
+```
+
+---
+
+### SignupActivity
+
+**Purpose:** New-account registration screen. Collects an email address (used as the username) plus a password with a confirmation check, then inserts the credentials into the SQLite `users` table.
+
+**Layout:** `activity_signup.xml`
+
+**Key UI elements:**
+- `editEmail` (`EditText`) — taken as the username stored in the database
+- `editPassword` (`EditText`) — desired password
+- `editConfirmPassword` (`EditText`) — password confirmation
+- `buttonCreateAccount` (`Button`) — triggers registration
+
+**Navigation:**
+- Create Account button → validates that both password fields match, then calls `DatabaseHelper.insertUser(username, password)`. On success, shows `"Account Created Successfully"` and redirects to `LoginActivity`. On failure (e.g. duplicate username), shows `"Account creation failed!"`.
+
+```java
+buttonCreateAccount.setOnClickListener(v -> {
+    String username = editEmail.getText().toString().trim();
+    String password = editPassword.getText().toString().trim();
+    String confirmPassword = editConfirmPassword.getText().toString().trim();
+
+    if (!password.equals(confirmPassword)) {
+        Toast.makeText(SignupActivity.this, "Passwords do not match!",
+                Toast.LENGTH_SHORT).show();
+    } else {
+        boolean success = databaseHelper.insertUser(username, password);
+        if (success) {
+            Toast.makeText(SignupActivity.this, "Account Created Successfully",
+                    Toast.LENGTH_SHORT).show();
+            startActivity(new Intent(SignupActivity.this, LoginActivity.class));
+            finish();
+        } else {
+            Toast.makeText(SignupActivity.this, "Account creation failed!",
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+});
+```
+
+---
+
+### SmsPermissionActivity
+
+**Purpose:** Displayed when `MainActivity` detects that the `SEND_SMS` permission has not been granted. Presents the user with an explicit Allow or Deny choice before proceeding to the main screen.
+
+**Layout:** `activity_sms.xml`
+
+**Key UI elements:**
+- `buttonAllow` (`Button`) — requests the `SEND_SMS` runtime permission via `ActivityCompat.requestPermissions`
+- `buttonDeny` (`Button`) — skips the permission request and proceeds directly
+
+**Navigation:** Both buttons ultimately call `goToMainActivity()`, which starts `MainActivity` and finishes `SmsPermissionActivity`. If the Allow path triggers an OS permission dialog, `onRequestPermissionsResult` calls `goToMainActivity()` regardless of whether the user granted or denied.
+
+```java
+private void goToMainActivity() {
+    Intent intent = new Intent(SmsPermissionActivity.this, MainActivity.class);
+    startActivity(intent);
+    finish();
+}
+```
+
+---
+
+### MainActivity
+
+**Purpose:** The primary event list screen. Loads all events from SQLite into a `GridLayout` using inflated `event_card` views, and provides edit and delete actions per card.
+
+**Layout:** `activity_main.xml`
+
+**Key UI elements:**
+- `eventsGrid` (`GridLayout`) — host for dynamically inflated `event_card` views
+- `fabAddEvent` (Floating Action Button) — navigates to `AddEventActivity` for a new event
+
+**On create:** Initialises `DatabaseHelper`, calls `loadEvents()`, wires the FAB, and checks whether `SEND_SMS` is granted. If not, immediately starts `SmsPermissionActivity` (without finishing `MainActivity`, so the back stack is preserved).
+
+**`loadEvents()` method:**
+
+```java
+private void loadEvents() {
+    eventsGrid.removeAllViews();
+    ArrayList<Event> events = db.getAllEvents();
+
+    for (Event event : events) {
+        CardView card = (CardView) getLayoutInflater()
+                .inflate(R.layout.event_card, eventsGrid, false);
+
+        TextView textDay   = card.findViewById(R.id.tempTextDay);
+        TextView textDate  = card.findViewById(R.id.tempTextDate);
+        TextView eventTitle = card.findViewById(R.id.tempEventTitle);
+        TextView textTime  = card.findViewById(R.id.tempTextTime);
+        ImageButton buttonEdit   = card.findViewById(R.id.tempButtonEdit);
+        ImageButton buttonDelete = card.findViewById(R.id.tempButtonDelete);
+
+        textDay.setText(event.getDayOfWeek());  // e.g. "SAT"
+        textDate.setText(event.getDateDay());   // e.g. "05"
+        eventTitle.setText(event.getTitle());   // e.g. "Project Two Due"
+        textTime.setText(event.getTime());      // e.g. "ALL DAY" or "01:30PM"
+
+        buttonEdit.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, AddEventActivity.class);
+            intent.putExtra("event_id", event.getId());
+            startActivity(intent);
+        });
+
+        buttonDelete.setOnClickListener(v -> {
+            db.deleteEvent(event.getId());
+            loadEvents();
+            Toast.makeText(MainActivity.this, "Event Deleted",
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        eventsGrid.addView(card);
+    }
+}
+```
+
+`loadEvents()` is also called from `onResume()` so the list refreshes automatically after returning from `AddEventActivity`.
+
+---
+
+### AddEventActivity
+
+**Purpose:** Handles both creating a new event and editing an existing one. The caller signals edit mode by including an `"event_id"` Intent extra; without it the activity creates a new event.
+
+**Layout:** `activity_add_event.xml`
+
+**Key UI elements:**
+- `editEventTitle` (`EditText`) — event title
+- `textEventDate` (`EditText`) — event date (displayed/entered as text)
+- `textEventTime` (`EditText`) — event time (displayed/entered as text)
+- `buttonSave` (`Button`) — saves the event
+- `imageButton` (`ImageButton`) — back button, calls `finish()`
+
+**Save button logic:**
+
+```java
+buttonSave.setOnClickListener(v -> {
+    String title = editEventTitle.getText().toString().trim();
+    String date  = textEventDate.getText().toString().trim();
+    String time  = textEventTime.getText().toString().trim();
+
+    if (title.isEmpty() || date.isEmpty() || time.isEmpty()) {
+        Toast.makeText(this, "All fields are required", Toast.LENGTH_SHORT).show();
+    } else {
+        if (eventId == -1) {
+            db.insertEvent(title, date, time);
+            Toast.makeText(this, "Event Added", Toast.LENGTH_SHORT).show();
+        } else {
+            db.updateEvent(eventId, title, date, time);
+            Toast.makeText(this, "Event Updated", Toast.LENGTH_SHORT).show();
+        }
+        finish();
+    }
+});
+```
+
+When `"event_id"` is present in the incoming `Intent`, the activity calls `db.getEventById(eventId)` and pre-populates all three fields with the existing values.
+
+---
+
+## Permissions and Manifest
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.punctuowlityeventtracker">
+
+    <!-- Permissions -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PunctuOwlityEventTracker"
+        tools:targetApi="31">
+
+        <!-- Login Screen (launcher) -->
+        <activity android:name=".LoginActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Sign Up Screen -->
+        <activity android:name=".SignupActivity" android:exported="false" />
+
+        <!-- SMS Permission Screen -->
+        <activity android:name=".SmsPermissionActivity" android:exported="false" />
+
+        <!-- Add Event Screen -->
+        <activity
+            android:name=".AddEventActivity"
+            android:exported="false"
+            android:label="Add Event"
+            android:theme="@style/Theme.PunctuOwlityEventTracker" />
+
+        <!-- Main Screen -->
+        <activity android:name=".MainActivity" android:exported="false" />
+
+    </application>
+</manifest>
+```
+
+`android.hardware.telephony` is declared with `android:required="false"` so that the app can be installed on tablets and emulators that do not have a cellular radio. The `SEND_SMS` permission is still declared and requested at runtime, but its absence does not prevent the app from running.
+
+Only `LoginActivity` is exported and set as the launcher entry point. All other activities are internal (`android:exported="false"`).
+
+---
+
+## Dependencies
+
+Key runtime dependencies declared in `build.gradle` (versions resolved via `gradle/libs.versions.toml`):
+
+| Artifact | Version | Purpose |
+|---|---|---|
+| `androidx.appcompat:appcompat` | 1.7.0 | `AppCompatActivity` base class for all activities |
+| `com.google.android.material:material` | 1.12.0 | Material Design widgets (buttons, cards, FAB) |
+| `androidx.activity:activity` | 1.8.0 | `ComponentActivity` and result APIs |
+| `androidx.constraintlayout:constraintlayout` | 2.1.4 | Constraint-based layouts |
+| `androidx.gridlayout:gridlayout` | 1.1.0 | `GridLayout` used in `MainActivity` for the event grid |
+| `androidx.legacy:legacy-support-v4` | 1.0.0 | Backward-compatibility utilities |
+| `androidx.lifecycle:lifecycle-runtime-ktx` | 2.8.7 | Lifecycle-aware coroutine scopes |
+| `androidx.compose.material3:material3` | (BOM 2024.09.00) | Material3 theming tokens via Compose BOM |

@@ -1,0 +1,222 @@
+---
+title: "Managing Events in PunctuOwlity"
+sidebarTitle: "Events"
+description: "Add, edit, delete, search, and filter events in PunctuOwlity. The events dashboard shows cards with day, date, title, time, and an optional reminder toggle."
+---
+
+The events dashboard is the core of PunctuOwlity. It displays every saved event as a card in a two-column grid and provides tools to add new events, edit or delete existing ones, search by title, and filter by category. On Android the dashboard is `MainActivity`; in the browser it is `events.html`, driven by `app.js`.
+
+## The Events Dashboard
+
+Each event appears as a card containing the following information:
+
+| Position | Content | Example |
+|---|---|---|
+| Top-left | Three-letter day abbreviation | `SAT` |
+| Centre-left | Two-digit day-of-month number | `05` |
+| Body | Event title | `Project Two Due` |
+| Footer | Formatted time, or `ALL DAY` if no time was set | `01:30PM` |
+| Top-right | Alarm icon (on or off) indicating reminder status | 🔔 / 🔕 |
+| Actions | Edit and delete icon buttons | ✏️ 🗑 |
+
+**Android** renders cards by inflating a `CardView` layout (`event_card.xml`) for each `Event` returned by `db.getAllEvents()`, then adding each card to a `GridLayout` (`eventsGrid`). The `getDayOfWeek()` and `getDateDay()` helpers on the `Event` model parse the stored `MM/dd/yyyy` date string using `SimpleDateFormat` to derive the abbreviated day name and zero-padded day number respectively.
+
+**Browser** renders cards dynamically. The `render()` function in `app.js` calls `getEvents()`, applies the active category filter and any search query, then maps the resulting array into HTML `<article>` elements which are written to the `#eventsGrid` section as a single `innerHTML` assignment.
+
+## Adding an Event
+
+<Steps>
+  <Step title="Tap the Add Event button">
+    **Android:** Tap the floating action button (`fabAddEvent`) on `MainActivity`. This starts `AddEventActivity` with no extras.
+
+    **Browser:** Tap the floating action button (`.fab`) on `events.html`. This navigates to `add-event.html` with no URL parameters.
+  </Step>
+  <Step title="Fill in the event details">
+    Three fields are required on both platforms:
+
+    - **Title** — a free-text name for the event (`#editEventTitle` on Android, `#eventTitle` in the browser).
+    - **Date** — entered in `MM/dd/yyyy` format on Android (`textEventDate`); the browser renders an `<input type="date">` picker (`#eventDate`) which stores the value in `YYYY-MM-DD` format internally.
+    - **Time** — entered as free text on Android (`textEventTime`); the browser renders an `<input type="time">` picker (`#eventTime`).
+
+    The browser form also includes a **reminder toggle** (`#eventAlert`, a checkbox styled as a switch) labelled "Would you like to be reminded of this event?"
+  </Step>
+  <Step title="Save the event">
+    **Android:** The `buttonSave` click listener validates that none of the three fields are empty, then calls `db.insertEvent(title, date, time)` for a new event:
+
+    ```java
+    buttonSave.setOnClickListener(v -> {
+        String title = editEventTitle.getText().toString().trim();
+        String date  = textEventDate.getText().toString().trim();
+        String time  = textEventTime.getText().toString().trim();
+
+        if (title.isEmpty() || date.isEmpty() || time.isEmpty()) {
+            Toast.makeText(this, "All fields are required", Toast.LENGTH_SHORT).show();
+        } else {
+            if (eventId == -1) {
+                db.insertEvent(title, date, time);
+                Toast.makeText(this, "Event Added", Toast.LENGTH_SHORT).show();
+            } else {
+                db.updateEvent(eventId, title, date, time);
+                Toast.makeText(this, "Event Updated", Toast.LENGTH_SHORT).show();
+            }
+            finish();
+        }
+    });
+    ```
+
+    `DatabaseHelper.insertEvent` writes a new row to the `events` SQLite table:
+
+    ```java
+    public boolean insertEvent(String title, String date, String time) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COL_TITLE, title);
+        values.put(COL_DATE, date);
+        values.put(COL_TIME, time);
+        long result = db.insert(TABLE_EVENTS, null, values);
+        return result != -1;
+    }
+    ```
+
+    **Browser:** The `#eventForm` submit handler validates the fields, constructs a new event object (including the `alert` checkbox state), and pushes it to the events array in `localStorage`:
+
+    ```javascript
+    document.querySelector('#eventForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const title     = document.querySelector('#eventTitle').value.trim();
+      const dateValue = document.querySelector('#eventDate').value;
+      const time      = document.querySelector('#eventTime').value;
+
+      if (!title || !dateValue || !time) { toast('All fields are required'); return; }
+
+      const d    = new Date(dateValue + 'T00:00:00');
+      const item = {
+        id:       id || String(Date.now()),
+        day:      d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+        date:     String(d.getDate()).padStart(2, '0'),
+        fullDate: dateValue,
+        rawTime:  time,
+        title,
+        time:     new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US',
+                    { hour: '2-digit', minute: '2-digit' }).replace(' ', ''),
+        category: existing?.category || 'general',
+        alert:    document.querySelector('#eventAlert').checked
+      };
+
+      const events = getEvents();
+      const i      = events.findIndex(x => x.id === id);
+      const updated = i >= 0;
+      if (updated) events[i] = item; else events.push(item);
+      saveEvents(events);
+      toast(updated ? 'Event Updated' : 'Event Added');
+      setTimeout(() => location.assign('events.html'), 600);
+    });
+    ```
+  </Step>
+</Steps>
+
+## Editing an Event
+
+**Android:** Tapping the edit `ImageButton` on a card in `MainActivity` starts `AddEventActivity` with the event's database ID attached as an extra:
+
+```java
+buttonEdit.setOnClickListener(v -> {
+    Intent intent = new Intent(MainActivity.this, AddEventActivity.class);
+    intent.putExtra("event_id", event.getId());
+    startActivity(intent);
+});
+```
+
+In `AddEventActivity.onCreate`, the presence of the `event_id` extra triggers a lookup via `db.getEventById(eventId)`, and the returned values pre-populate the three form fields. On save, `db.updateEvent(eventId, title, date, time)` is called instead of `insertEvent`:
+
+```java
+public boolean updateEvent(int id, String title, String date, String time) {
+    SQLiteDatabase db = this.getWritableDatabase();
+    ContentValues values = new ContentValues();
+    values.put(COL_TITLE, title);
+    values.put(COL_DATE, date);
+    values.put(COL_TIME, time);
+    int result = db.update(TABLE_EVENTS, values,
+                           COL_EVENT_ID + "=?", new String[]{String.valueOf(id)});
+    return result > 0;
+}
+```
+
+**Browser:** Clicking the edit button on a card navigates to `add-event.html?id=<event_id>`. The `add` page handler reads the `id` URL parameter, finds the matching event with `getEvents().find(e => e.id === id)`, and pre-populates the form fields (title, date, time, and the alert checkbox) with the existing values. On submit, `events.findIndex(x => x.id === id)` locates the record in the array and `events[i] = item` replaces it in place before `saveEvents` writes the updated array back to `localStorage`.
+
+## Deleting an Event
+
+**Android:** Tapping the delete `ImageButton` on a card calls `db.deleteEvent(event.getId())` and then `loadEvents()` to rebuild the grid:
+
+```java
+buttonDelete.setOnClickListener(v -> {
+    db.deleteEvent(event.getId());
+    loadEvents();
+    Toast.makeText(MainActivity.this, "Event Deleted", Toast.LENGTH_SHORT).show();
+});
+```
+
+`DatabaseHelper.deleteEvent` removes the matching row from the SQLite `events` table by primary key:
+
+```java
+public boolean deleteEvent(int id) {
+    SQLiteDatabase db = this.getWritableDatabase();
+    int result = db.delete(TABLE_EVENTS,
+                           COL_EVENT_ID + "=?", new String[]{String.valueOf(id)});
+    return result > 0;
+}
+```
+
+**Browser:** Clicking the delete button triggers a delegated click listener on `#eventsGrid`. It identifies the card's `data-id` attribute, filters the event out of the current array with `getEvents().filter(x => x.id !== card.dataset.id)`, writes the result back via `saveEvents`, re-renders the grid, and shows a toast:
+
+```javascript
+grid.addEventListener('click', e => {
+  const card = e.target.closest('.event-card');
+  if (!card) return;
+  if (e.target.closest('.delete')) {
+    saveEvents(getEvents().filter(x => x.id !== card.dataset.id));
+    render();
+    toast('Event Deleted');
+  }
+  if (e.target.closest('.edit'))
+    location.assign(`add-event.html?id=${encodeURIComponent(card.dataset.id)}`);
+});
+```
+
+## Searching and Filtering
+
+A search input (`#eventSearch`) and four category tabs sit above the events grid on both platforms.
+
+**Search:** The `input` event on `#eventSearch` calls `render()` immediately. Inside `render()`, events are filtered so that `event.title.toLowerCase().includes(q)` is true for the current lowercase query string. The filter is case-insensitive and matches any substring of the title.
+
+**Category tabs:** The tabs are **All Events**, **Birthdays**, **Appointments**, and **Trips**, corresponding to the category values `all`, `birthday`, `appointment`, and `trip`. Clicking a tab updates the `category` variable and calls `render()`. The two filters are applied together — an event must satisfy both the active category and the search query to appear.
+
+**Auto-detection of categories (browser):** When an event is normalised by `normalizeEvent()`, if the event object has no explicit `category` property, the function inspects the title to infer one:
+
+```javascript
+let category = event.category || 'general';
+if (!event.category && lowerTitle.includes('birthday'))
+  category = 'birthday';
+else if (!event.category && /(appointment|dentist|dental|doctor)/.test(lowerTitle))
+  category = 'appointment';
+else if (!event.category && /(trip|travel|vacation)/.test(lowerTitle))
+  category = 'trip';
+```
+
+<Tip>
+  Category auto-detection only applies when saving an event that does not already have an explicit category assigned. If you want an event to appear under a specific tab, include one of the trigger keywords in its title — for example, any title containing `birthday` routes to the **Birthdays** tab, and titles matching `appointment`, `dentist`, `dental`, or `doctor` route to **Appointments**.
+</Tip>
+
+## Event Data Model
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` (browser) / `integer` (Android) | Unique identifier. Browser uses `Date.now()` as a string; Android uses SQLite `AUTOINCREMENT`. |
+| `title` | `string` | The event name as entered by the user. |
+| `date` | `string` | Zero-padded day-of-month number, e.g. `"05"`. Derived from `fullDate` by `normalizeEvent`. |
+| `time` | `string` | Human-readable display time, e.g. `"01:30PM"` or `"ALL DAY"`. Formatted by `normalizeEvent` from `rawTime`. |
+| `day` | `string` | Three-letter uppercase day abbreviation, e.g. `"SAT"`. Derived from `fullDate`. |
+| `fullDate` | `string` | ISO 8601 date string (`YYYY-MM-DD`). Used for date comparisons and notification checks. |
+| `rawTime` | `string` | 24-hour time string as stored (`HH:MM`), or empty string for all-day events. |
+| `category` | `string` | One of `all`, `birthday`, `appointment`, `trip`, or `general`. Used by the filter tabs. |
+| `alert` | `boolean` | Whether a reminder notification is enabled for this event. |

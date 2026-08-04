@@ -1,47 +1,75 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with PunctuOwlity in Minutes"
+sidebarTitle: "Quickstart"
+description: "Run the PunctuOwlity browser demo locally or build and install the Android app. Both versions are ready in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+There are two ways to run PunctuOwlity. You can open the browser demo directly in any modern browser — no build step or server required — or you can build and install the Android APK using Android Studio. Pick the path that fits your setup below.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+<Tabs>
+  <Tab title="Browser Demo">
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/apursley2012/punctuowlity.git
+        ```
+      </Step>
+      <Step title="Open index.html in your browser">
+        Navigate into the cloned directory and open `index.html` directly in any modern browser. No build step and no server are required to run the demo.
 
-## Prerequisites
+        ```bash
+        cd punctuowlity
+        open index.html   # macOS
+        # or double-click index.html in your file explorer on Windows/Linux
+        ```
 
-Before you begin, you must have:
+        <Note>
+          For full `localStorage` support — especially in browsers that restrict storage for `file://` URLs — serving the project through a local HTTP server or deploying it to GitHub Pages is recommended.
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
-
-<Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
-
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
-
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
-
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+          ```bash
+          # Quick local server with Python
+          python3 -m http.server 8080
+          ```
+        </Note>
+      </Step>
+      <Step title="Create an account on the Sign Up screen">
+        The app opens on the Login screen. Click the **Sign Up** link to create a new account. Enter a first name, last name, email, username, and password. Credentials are stored entirely in browser `localStorage` — no data leaves your device.
+      </Step>
+      <Step title="Allow or deny browser notifications">
+        After signing up and logging in, the SMS permission screen appears. Click **Allow** to enable Web Notifications (the browser will prompt for permission) or **Deny** to skip. Either choice continues to the dashboard.
+      </Step>
+      <Step title="Explore the events dashboard">
+        The dashboard opens with four seed events already loaded so you can see the two-column card layout right away. Click the floating **+** button (FAB) in the bottom-right corner to add your first event.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Android App">
+    <Steps>
+      <Step title="Import the project in Android Studio">
+        Open Android Studio and choose **File → Open** (or **Get from VCS** if you want to clone directly). Point it at the `android-fixed-source/PunctuOwlityEventTracker` directory inside the repository — Android Studio will recognise it as a Gradle project automatically.
+      </Step>
+      <Step title="Let Gradle sync">
+        Android Studio will download dependencies and sync the project. The app targets **Android API 35** (`compileSdk 35`, `targetSdk 35`) with a minimum of **API 21** (`minSdk 21`, Android 5.0 Lollipop), so it runs on most modern Android devices and emulators.
+      </Step>
+      <Step title="Connect a device or start an emulator">
+        Plug in a physical Android device with USB debugging enabled, or launch an AVD from the **Device Manager** panel. Any emulator image running API 21 or higher will work.
+      </Step>
+      <Step title="Run the app">
+        Click the **Run** button (or press `Shift + F10`). Android Studio will build and deploy the APK. The app launches directly into the **Login** screen.
+      </Step>
+      <Step title="Sign up and log in">
+        Tap **Sign Up** to open the account-creation screen. Fill in your details and tap **Create Account**. You will be returned to the Login screen — enter your new credentials and tap **Login**.
+      </Step>
+      <Step title="Grant or deny SMS permission">
+        The app routes through the SMS permission screen. Tap **Allow** to grant `android.permission.SEND_SMS` or **Deny** to continue without it. The events dashboard loads either way.
+      </Step>
+      <Step title="Add your first event">
+        The events dashboard opens with the two-column card grid. Tap the **floating add button** in the bottom-right corner to open the Add Event form. Fill in a title, date, and time, then save — your event appears on the dashboard instantly.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  The browser demo ships with four seed events — **Project Two Due**, **Nich's Birthday**, **Dentist**, and **Jessica's Wedding** — pre-loaded into `localStorage` on first run. They populate the dashboard immediately so you can see the two-column card layout, category labels, and reminder toggles without adding anything yourself.
 </Tip>

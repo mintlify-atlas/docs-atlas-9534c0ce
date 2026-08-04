@@ -1,0 +1,294 @@
+---
+title: "PunctuOwlity Data Model: Events and Users"
+sidebarTitle: "Data Model"
+description: "Reference for the Event and User data structures used by PunctuOwlity in both the Android SQLite database and the browser localStorage."
+---
+
+PunctuOwlity stores two types of data — users and events. On Android they live in an SQLite database (`punctuowlity.db`) managed by `DatabaseHelper`; in the browser they are JSON arrays persisted to `localStorage` and read back through the `getEvents()` / `getUsers()` helpers in `app.js`.
+
+---
+
+## The `events` Table / Event Object
+
+### Android — SQLite schema
+
+```sql
+CREATE TABLE events (
+  id    INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT,
+  date  TEXT,
+  time  TEXT
+)
+```
+
+The `date` column stores dates in `MM/dd/yyyy` format as free-form text. The `time` column stores the display time string (e.g. `01:30PM` or `ALL DAY`).
+
+### Browser — event object shape
+
+In the browser, each event is a plain JavaScript object produced by the `normalizeEvent` function in `app.js`. Every event retrieved via `getEvents()` is guaranteed to have the following fields:
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the event. For seed events this is a short slug (e.g. `"birthday"`). For user-created events it is the string representation of `Date.now()` at the moment of creation.
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Human-readable title of the event (e.g. `"Dentist"`, `"Jessica's Wedding"`).
+</ResponseField>
+
+<ResponseField name="date" type="string" required>
+  Two-digit day-of-month number, zero-padded (e.g. `"05"`, `"14"`). Computed from `fullDate` by `normalizeEvent`.
+</ResponseField>
+
+<ResponseField name="fullDate" type="string" required>
+  ISO 8601 date string in `YYYY-MM-DD` format (e.g. `"2025-04-14"`). This is the canonical date field used for comparisons and notification logic.
+</ResponseField>
+
+<ResponseField name="rawTime" type="string" required>
+  24-hour time string in `HH:MM` format as the user entered it (e.g. `"13:30"`). Empty string `""` indicates an all-day event.
+</ResponseField>
+
+<ResponseField name="time" type="string" required>
+  Display-formatted time string. Derived from `rawTime` by `normalizeEvent`. A non-empty `rawTime` is converted to 12-hour format with a two-digit hour (e.g. `"01:30PM"`, `"06:30PM"`). An empty `rawTime` produces the literal string `"ALL DAY"`.
+</ResponseField>
+
+<ResponseField name="day" type="string" required>
+  Abbreviated day-of-week in uppercase, three letters (e.g. `"SAT"`, `"MON"`, `"SUN"`). Computed from `fullDate` via `Date.prototype.toLocaleDateString` with `{ weekday: 'short' }`.
+</ResponseField>
+
+<ResponseField name="category" type="string" required>
+  Event category used to filter the tabs on the main events screen. One of:
+
+  | Value | Meaning |
+  |---|---|
+  | `all` | General / uncategorised event |
+  | `birthday` | Auto-detected when the title contains `"birthday"` |
+  | `appointment` | Auto-detected when the title contains `appointment`, `dentist`, `dental`, or `doctor` |
+  | `trip` | Auto-detected when the title contains `trip`, `travel`, or `vacation` |
+
+  If a category was explicitly set (e.g. from a saved event), that value is used as-is.
+</ResponseField>
+
+<ResponseField name="alert" type="boolean" required>
+  Whether the user requested a Web Notification for this event. `true` means a notification will fire on the event's `fullDate` if `Notification.permission === 'granted'` and the key has not already been stored in `sessionStorage`.
+</ResponseField>
+
+### `Event.java` model class
+
+The Android `Event` model lives in `com.example.punctuowlityeventtracker.Event`. It exposes two constructors and two computed methods:
+
+```java
+// Full constructor — used when loading from the database
+public Event(int id, String title, String date, String time)
+
+// Convenience constructor — used when building an event before insertion
+public Event(String title, String date, String time)
+```
+
+**Computed methods:**
+
+```java
+/**
+ * Parses the stored MM/dd/yyyy date string and returns the abbreviated
+ * day-of-week in uppercase (e.g. "SAT", "MON").
+ * Returns "---" if parsing fails.
+ */
+public String getDayOfWeek()
+
+/**
+ * Parses the stored MM/dd/yyyy date string and returns the zero-padded
+ * two-digit day number (e.g. "05", "14").
+ * Returns "00" if parsing fails.
+ */
+public String getDateDay()
+```
+
+Both methods use `java.text.SimpleDateFormat` with the pattern `"MM/dd/yyyy"` to parse `date`, then reformat with `"EEE"` (for `getDayOfWeek`) or `"dd"` (for `getDateDay`) respectively. `getDayOfWeek` additionally calls `.toUpperCase()` on the result.
+
+---
+
+## The `users` Table / User Object
+
+### Android — SQLite schema
+
+```sql
+CREATE TABLE users (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE,
+  password TEXT
+)
+```
+
+The `UNIQUE` constraint on `username` prevents duplicate registrations at the database level. Passwords are stored as plain text in the current implementation.
+
+### Browser — user object shape
+
+In the browser, a user is a plain JavaScript object written to `localStorage` (and mirrored to `sessionStorage`) under the key `punctuowlity-users`.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier, set to `String(Date.now())` at account creation time.
+</ResponseField>
+
+<ResponseField name="firstName" type="string" required>
+  The user's first name as entered in the `#firstName` field on `signup.html`.
+</ResponseField>
+
+<ResponseField name="lastName" type="string" required>
+  The user's last name as entered in the `#lastName` field on `signup.html`.
+</ResponseField>
+
+<ResponseField name="email" type="string" required>
+  Email address, stored in lower-case. Accepted as a login credential alongside `username`.
+</ResponseField>
+
+<ResponseField name="phone" type="string">
+  Optional phone number for SMS alerts. May be an empty string if the user did not provide one.
+</ResponseField>
+
+<ResponseField name="username" type="string" required>
+  Username chosen at signup, stored as entered (comparison is case-insensitive). Accepted as a login credential alongside `email`.
+</ResponseField>
+
+<ResponseField name="password" type="string" required>
+  Plain-text password. Compared directly against the value entered in the login form.
+</ResponseField>
+
+---
+
+## DatabaseHelper Methods
+
+`DatabaseHelper` extends `SQLiteOpenHelper` and is instantiated with a `Context`. All methods open the database internally — callers do not manage the connection directly.
+
+### `insertEvent`
+
+Inserts a new row into the `events` table.
+
+<ParamField path="title" type="String" required>
+  The event title text.
+</ParamField>
+
+<ParamField path="date" type="String" required>
+  The event date in `MM/dd/yyyy` format.
+</ParamField>
+
+<ParamField path="time" type="String" required>
+  The display time string (e.g. `"01:30PM"` or `"ALL DAY"`).
+</ParamField>
+
+**Returns** `boolean` — `true` if the insert succeeded (row ID ≠ -1), `false` otherwise.
+
+---
+
+### `updateEvent`
+
+Updates an existing row in the `events` table identified by its integer `id`.
+
+<ParamField path="id" type="int" required>
+  The primary-key `id` of the event to update.
+</ParamField>
+
+<ParamField path="title" type="String" required>
+  Replacement title text.
+</ParamField>
+
+<ParamField path="date" type="String" required>
+  Replacement date in `MM/dd/yyyy` format.
+</ParamField>
+
+<ParamField path="time" type="String" required>
+  Replacement display time string.
+</ParamField>
+
+**Returns** `boolean` — `true` if at least one row was affected, `false` otherwise.
+
+---
+
+### `deleteEvent`
+
+Deletes a single row from the `events` table.
+
+<ParamField path="id" type="int" required>
+  The primary-key `id` of the event to delete.
+</ParamField>
+
+**Returns** `boolean` — `true` if at least one row was deleted, `false` otherwise.
+
+---
+
+### `getAllEvents`
+
+Returns every row in the `events` table as a list of `Event` objects, in database insertion order.
+
+**Returns** `ArrayList<Event>` — an empty list if the table is empty.
+
+---
+
+### `getEventById`
+
+Looks up a single event by its primary key.
+
+<ParamField path="id" type="int" required>
+  The primary-key `id` of the event to retrieve.
+</ParamField>
+
+**Returns** `Event` if found, or `null` if no row with the given `id` exists.
+
+---
+
+### `insertUser`
+
+Inserts a new row into the `users` table. Fails silently (returns `false`) if `username` is already taken, because the column carries a `UNIQUE` constraint.
+
+<ParamField path="username" type="String" required>
+  The chosen username. Must be unique across all stored users.
+</ParamField>
+
+<ParamField path="password" type="String" required>
+  The plain-text password to store.
+</ParamField>
+
+**Returns** `boolean` — `true` if the insert succeeded, `false` if the username is already registered or the insert otherwise failed.
+
+---
+
+### `checkUser`
+
+Verifies that a `(username, password)` pair exists in the `users` table.
+
+<ParamField path="username" type="String" required>
+  The username to check.
+</ParamField>
+
+<ParamField path="password" type="String" required>
+  The plain-text password to verify.
+</ParamField>
+
+**Returns** `boolean` — `true` if a matching row exists, `false` otherwise.
+
+---
+
+### Java usage example
+
+```java
+DatabaseHelper db = new DatabaseHelper(context);
+
+// Insert a new event
+boolean inserted = db.insertEvent("Dentist", "04/14/2025", "01:30PM");
+
+// Load all events and iterate
+ArrayList<Event> events = db.getAllEvents();
+for (Event event : events) {
+    Log.d("PunctuOwlity", event.getDayOfWeek() + " " + event.getDateDay()
+            + " — " + event.getTitle() + " at " + event.getTime());
+}
+```
+
+---
+
+## localStorage Keys (Browser)
+
+| Key | Type | Description |
+|---|---|---|
+| `punctuowlity-events` | JSON array | Array of event objects (see [Browser event object shape](#browser--event-object-shape) above). Written by `saveEvents(events)`, read by `getEvents()`. Initialised to `seedEvents` the first time `getEvents()` is called and no saved data is found. |
+| `punctuowlity-users` | JSON array | Array of user objects (see [Browser user object shape](#browser--user-object-shape) above). Written and read by `saveUsers` / `getUsers`, which mirror the value to both `localStorage` and `sessionStorage` for resilience. |
+| `punctuowlity-sms` | string | Records the user's SMS / notification choice on `sms.html`. Either `"allowed"` or `"denied"`. A `null` value (key absent) means the user has not yet passed through the SMS permission screen — `events.html` redirects to `sms.html` in that case. |
+| `punctuowlity-notified-{id}-{date}` | string | Stored in **`sessionStorage`** (not `localStorage`). Keyed by event `id` and ISO date (e.g. `punctuowlity-notified-birthday-2025-04-12`). Set to `"true"` after a Web Notification has been fired for that event on that date, preventing duplicate notifications within the same browser session. |

@@ -1,0 +1,196 @@
+---
+title: "Authentication in PunctuOwlity: Local Accounts"
+sidebarTitle: "Authentication"
+description: "PunctuOwlity uses local user accounts — SQLite on Android, localStorage in the browser. No server, no cloud sync, and no external auth required."
+---
+
+PunctuOwlity authenticates users entirely on-device. There is no remote server and no cloud sync — on Android, accounts are stored in a local SQLite database (`punctuowlity.db`), while the browser version stores accounts as JSON in `localStorage` under the key `punctuowlity-users`. Both platforms share the same conceptual flow: sign up, log in, and stay authenticated for the life of the session.
+
+## Creating an Account
+
+<Steps>
+  <Step title="Open the sign-up screen">
+    **Android:** Tap **Sign Up** on the `LoginActivity` screen. This launches `SignupActivity`.
+
+    **Browser:** Click the **Sign Up** link on `index.html`. This navigates to `signup.html`.
+  </Step>
+  <Step title="Fill in your details">
+    **Android:** `SignupActivity` presents three fields — `editEmail` (your username), `editPassword`, and `editConfirmPassword`. Despite the field ID, the value entered here is stored as the account's username.
+
+    **Browser:** `signup.html` collects six required fields — First Name (`#firstName`), Last Name (`#lastName`), Email Address (`#editEmail`), Username (`#signupUsername`), Password (`#signupPassword`), and Confirm Password (`#confirmPassword`) — plus an optional Phone field (`#phone`) for SMS alerts.
+  </Step>
+  <Step title="Submit and validate">
+    **Android:** The `buttonCreateAccount` click listener confirms that `password` equals `confirmPassword`, then calls `DatabaseHelper.insertUser(username, password)`. A toast reports success or failure.
+
+    ```java
+    buttonCreateAccount.setOnClickListener(v -> {
+        String username = editEmail.getText().toString().trim();
+        String password = editPassword.getText().toString().trim();
+        String confirmPassword = editConfirmPassword.getText().toString().trim();
+
+        if (!password.equals(confirmPassword)) {
+            Toast.makeText(SignupActivity.this, "Passwords do not match!", Toast.LENGTH_SHORT).show();
+        } else {
+            boolean success = databaseHelper.insertUser(username, password);
+            if (success) {
+                Toast.makeText(SignupActivity.this, "Account Created Successfully", Toast.LENGTH_SHORT).show();
+                startActivity(new Intent(SignupActivity.this, LoginActivity.class));
+                finish();
+            } else {
+                Toast.makeText(SignupActivity.this, "Account creation failed!", Toast.LENGTH_SHORT).show();
+            }
+        }
+    });
+    ```
+
+    **Browser:** The `#signupForm` submit handler checks that all required fields are filled, confirms that the two passwords match, and then checks whether the chosen username or email already exists in `punctuowlity-users`. If everything is valid, a new account object is pushed to the users array and saved via `saveUsers()`.
+
+    ```javascript
+    document.querySelector('#signupForm')?.addEventListener('submit', e => {
+      e.preventDefault();
+      const firstName  = document.querySelector('#firstName').value.trim();
+      const lastName   = document.querySelector('#lastName').value.trim();
+      const email      = document.querySelector('#editEmail').value.trim().toLowerCase();
+      const phone      = document.querySelector('#phone').value.trim();
+      const username   = document.querySelector('#signupUsername').value.trim();
+      const p          = document.querySelector('#signupPassword').value;
+      const c          = document.querySelector('#confirmPassword').value;
+      const users      = getUsers();
+
+      if (!firstName || !lastName || !email || !username || !p || !c) {
+        toast('All required fields must be completed');
+        return;
+      }
+      if (p !== c) { toast('Passwords do not match!'); return; }
+
+      const normalizedUsername = username.toLowerCase();
+      if (users.some(user =>
+        String(user.username || '').trim().toLowerCase() === normalizedUsername ||
+        String(user.email    || '').trim().toLowerCase() === email
+      )) {
+        toast('That username or email is already registered');
+        return;
+      }
+
+      const newAccount = { id: String(Date.now()), firstName, lastName,
+                           email, phone, username, password: p };
+      users.push(newAccount);
+      if (!saveUsers(users)) { toast('Account creation failed!'); return; }
+      toast('Account Created Successfully');
+      setTimeout(() => location.assign('index.html'), 900);
+    });
+    ```
+  </Step>
+  <Step title="Get redirected to login">
+    **Android:** After a successful `insertUser` call, the activity starts `LoginActivity` and calls `finish()` so the back button does not return to sign-up.
+
+    **Browser:** After a 900 ms delay (long enough to display the success toast), the page redirects to `index.html`.
+  </Step>
+</Steps>
+
+## Logging In
+
+**Android:** `LoginActivity` reads the `editUsername` and `editPassword` fields, then calls `DatabaseHelper.checkUser(username, password)`. The helper queries the `users` table for an exact match on both columns. If a row is found, `MainActivity` is launched and `LoginActivity` is finished.
+
+```java
+buttonLogin.setOnClickListener(v -> {
+    String username = editUsername.getText().toString().trim();
+    String password = editPassword.getText().toString().trim();
+    if (databaseHelper.checkUser(username, password)) {
+        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+        startActivity(intent);
+        finish();
+    } else {
+        Toast.makeText(LoginActivity.this, "Invalid Username or Password", Toast.LENGTH_SHORT).show();
+    }
+});
+```
+
+The underlying `checkUser` method in `DatabaseHelper` queries the SQLite `users` table:
+
+```java
+public boolean checkUser(String username, String password) {
+    SQLiteDatabase db = this.getReadableDatabase();
+    Cursor cursor = db.query(TABLE_USERS, null,
+            COL_USERNAME + "=? AND " + COL_PASSWORD + "=?",
+            new String[]{username, password},
+            null, null, null);
+    boolean exists = (cursor.getCount() > 0);
+    cursor.close();
+    return exists;
+}
+```
+
+**Browser:** The `#loginForm` submit handler normalises the entered identity to lower-case and then searches `getUsers()` for a record where either `username` or `email` (both compared case-insensitively) matches the input **and** the password is identical. On success, the authenticated flag is written to `sessionStorage` and the user is sent to `events.html`.
+
+```javascript
+document.querySelector('#loginForm')?.addEventListener('submit', e => {
+  e.preventDefault();
+  const identity = document.querySelector('#editUsername').value.trim().toLowerCase();
+  const password = document.querySelector('#editPassword').value;
+
+  if (!identity || !password) { toast('Enter your username and password'); return; }
+
+  const matched = getUsers().some(user => {
+    const username = String(user.username || '').trim().toLowerCase();
+    const email    = String(user.email    || '').trim().toLowerCase();
+    return (identity === username || identity === email)
+        && password === String(user.password || '');
+  });
+
+  if (matched) {
+    sessionStorage.setItem('punctuowlity-authenticated', 'true');
+    location.assign('events.html');
+  } else {
+    toast('Invalid Username or Password');
+  }
+});
+```
+
+## Session Handling
+
+<Tabs>
+  <Tab title="Browser">
+    After a successful login, `app.js` stores the string `'true'` at `sessionStorage['punctuowlity-authenticated']`. When `events.html` loads, the very first thing `app.js` checks is whether that key is present:
+
+    ```javascript
+    if (sessionStorage.getItem('punctuowlity-authenticated') !== 'true') {
+      location.replace('index.html');
+    }
+    ```
+
+    If the flag is missing — because the user navigated directly to `events.html` without logging in, or because the tab was closed and reopened — they are immediately redirected back to `index.html`. `sessionStorage` is tab-scoped and is cleared automatically when the tab (or browser window) is closed, so sessions never persist across browser restarts.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Passwords are stored in plain text — as a raw string in the SQLite `password` column on Android, and as a plain `password` property in the JSON objects written to `localStorage` in the browser. This is intentional for a local demo app, but **must not** be used in a production environment. Any production deployment should hash passwords with a strong algorithm such as bcrypt before storing them.
+</Warning>
+
+<Note>
+  In the browser, `saveUsers` writes the serialised users array to **every** available storage (both `localStorage` and `sessionStorage`) in a single call, so the data is accessible from either:
+
+  ```javascript
+  const accountStorage = {
+    get() {
+      for (const storage of availableAccountStorage()) {
+        try {
+          const users = JSON.parse(storage.getItem('punctuowlity-users'));
+          if (Array.isArray(users)) return users;
+        } catch {}
+      }
+      return [];
+    },
+    set(users) {
+      const value = JSON.stringify(users);
+      let saved = false;
+      for (const storage of availableAccountStorage()) {
+        try { storage.setItem('punctuowlity-users', value); saved = true; } catch {}
+      }
+      return saved;
+    }
+  };
+  ```
+
+  `getUsers()` (which calls `accountStorage.get()`) iterates through the available stores in order and returns the first valid array it finds, providing a degree of redundancy if one storage type is unavailable.
+</Note>
